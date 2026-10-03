@@ -128,10 +128,9 @@ void keyboard_post_init_kb(void) {
     md_sleep_bt(true);  // 모듈 쪽 무선 수면 타이머 사용(설명서: 30분 미사용 수면) — 인자 의미는 라이브러리 문서가 없어 확인하지 못함
     md_sleep_2g4(true);
 
-    // 부팅 시 스위치 위치로 시작(연속 2회 같은 값일 때)
-    uint8_t m = read_switch();
-    wait_ms(10);
-    if (read_switch() == m) apply_mode(m);
+    // 스위치 위치는 여기서 적용하지 않는다. keyboard_init() 다음에 protocol_post_init()이 호스트 드라이버를
+    // USB로 덮어쓰므로, 여기서 무선으로 바꾸면 BT/2.4G 위치로 켜졌을 때 키 입력이 USB로 나간다.
+    // 첫 적용은 wireless_pre_task()에서 한다(cur_mode 가 MODE_NONE 이므로 50ms 간격 2회 일치 시 바로 적용).
 
     keyboard_post_init_user();
 }
