@@ -21,3 +21,6 @@
 | 15 | 30분 수면 | 무선 30분 무입력 → 연결 해제 → 아무 키로 재연결 | |
 | 16 | 저배터리 표시 | 잔량 20% 이하에서 Fn 키 빨강 깜박임 | |
 | 17 | 유선 전용 빌드 | `gats_wecat4_vial_wired.bin` 굽기 → 입력·조명·Vial·Fn+LCtrl 초기화 | |
+| 18 | dogakey 상태 강조 | `gats_wecat4_dogakey.bin` 굽기 → Fn·Shift·Ctrl·Win 누르는 동안 해당 키만 켜짐, 색 표와 같은지 | |
+| 19 | dogakey 언어 전환 번쩍임 | CapsLock·오른쪽 Alt → 초록 밝아짐 → 하늘색 띠 좌→우 → 원래 조명 | |
+| 20 | dogakey 무선 | 블루투스에서 입력·연결 표시가 일반 버전과 같은지 | |
