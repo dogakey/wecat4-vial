@@ -279,6 +279,31 @@ static void channel_led(uint8_t devs, bool on) {
     }
 }
 
+// 레이어 강조 중 지금 연결된 채널 키(BT1~3·2.4G)를 채널 색으로 깜박여 어느 채널에 붙어 있는지 보여 준다.
+// 위치를 고정하지 않고 현재 레이어 키맵에서 그 채널 키코드를 찾으므로 Vial 로 키를 옮겨도 따라간다.
+#define CONN_KEY_BLINK_MS 500
+static void blink_connected_key(uint8_t led_min, uint8_t led_max, uint8_t devs) {
+    uint16_t kc;
+    uint8_t  r = 0, g = 0, b = 0;
+    switch (devs) {
+        case DEVS_BT1: kc = QK_KB_0, r = 255; break;
+        case DEVS_BT2: kc = QK_KB_1, g = 255; break;
+        case DEVS_BT3: kc = QK_KB_2, b = 255; break;
+        case DEVS_2G4: kc = QK_KB_5, g = 255, b = 255; break;
+        default: return;
+    }
+    if (!blink(CONN_KEY_BLINK_MS)) r = g = b = 0;
+    uint8_t layer = get_highest_layer(layer_state);
+    for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
+        for (uint8_t col = 0; col < MATRIX_COLS; col++) {
+            uint8_t i = g_led_config.matrix_co[row][col];
+            if (i == NO_LED || i < led_min || i >= led_max) continue;
+            keypos_t pos = {.row = row, .col = col};
+            if (keymap_key_to_keycode(layer, pos) == kc) rgb_matrix_set_color(i, r, g, b);
+        }
+    }
+}
+
 bool rgb_matrix_indicators_advanced_kb(uint8_t led_min, uint8_t led_max) {
     if (!rgb_matrix_indicators_advanced_user(led_min, led_max)) return false;
 
@@ -331,6 +356,8 @@ bool rgb_matrix_indicators_advanced_kb(uint8_t led_min, uint8_t led_max) {
     } else if (now != DEVS_USB && timer_read32() < done_until) {
         for (uint8_t i = led_min; i < led_max; i++) rgb_matrix_set_color(i, 0, 0, 0);
         channel_led(now, true);
+    } else if (now != DEVS_USB && get_highest_layer(layer_state) > 0) {
+        blink_connected_key(led_min, led_max, now);
     }
     // 저배터리: Fn 자리 빨강 연속 깜박임(무선 모드)
     if (now != DEVS_USB && *md_getp_bat() <= LOWBAT_PERCENT && blink(500)) {
