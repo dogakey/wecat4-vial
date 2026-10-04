@@ -162,8 +162,12 @@ static void long_press_task(void) {
 // 무선 연결 표시 상태. 무선 칩 상태만 보고 판단하므로 스위치 전환·채널 전환·절전 복귀·사용 중 끊김을 같은 규칙으로 다룬다.
 //   연결 안 됨 10초 미만 = 연결 시도 표시, 10초 이상 = 경고 표시(연결되거나 유선으로 바꿀 때까지),
 //   연결되는 순간 = 대상 채널 키 1초 표시 후 평소 조명.
+//   끊긴 채 CONN_SLEEP_MS 동안 입력도 없으면 곧바로 절전한다. 호스트가 꺼졌거나 다른 기기로 옮긴 경우
+//   빨간 경고가 30분 절전까지 이어지는 것을 막고 배터리를 아낀다. 키를 누르면 깨어나 다시 연결을 시도한다.
+//   새 페어링 중(호스트에서 기기를 고르는 동안)에는 절전하지 않는다.
 #define CONN_WARN_MS 10000
 #define CONN_DONE_MS 1000
+#define CONN_SLEEP_MS 30000
 static uint32_t disc_since; // 0 = 연결됨(또는 유선)
 static uint32_t done_until; // 연결 직후 표시 종료 시각
 
@@ -180,6 +184,10 @@ static void conn_track(void) {
     } else if (!disc_since) {
         disc_since = t ? t : 1;
         done_until = 0;
+    } else if (state != MD_STATE_PAIRING && held_k < 0 && lpwr_get_state() == LPWR_NORMAL &&
+               timer_elapsed32(disc_since) >= CONN_SLEEP_MS && last_input_activity_elapsed() >= CONN_SLEEP_MS) {
+        disc_since = 0; // 깨어난 뒤 다시 0초부터 잰다
+        lpwr_set_manual_timeout(true);
     }
 }
 
