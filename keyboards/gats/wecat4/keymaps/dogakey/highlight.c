@@ -9,6 +9,8 @@
 // 한/영 번쩍임: 언어 전환 키(CapsLock·RAlt·Lang1/2·일본어 키, is_lang_switch)를 누르면 원래 조명 → 초록으로 smoothstep 교차 전환(FLASH_RISE_MS)해 FLASH_HOLD_MS 유지한 뒤,
 // 연한 하늘색 띠가 왼쪽에서 오른쪽으로 FLASH_SWEEP_MS 동안 흘러 초록을 오른쪽으로 밀어내고 띠 뒤로 원래 조명이
 // 돌아온다(순간 점멸·즉시 복귀는 눈이 피로함).
+// 강조색·번쩍임 색은 현재 RGB 밝기에 비례해 줄인다(효과와 같은 기준) — 고정값으로 칠하면 강조 중에는 밝기 키가 듣지 않는다.
+// 배터리·연결 표시는 경고라 밝기와 무관하게 그대로 둔다.
 // 강조 위에 덮고, 배터리·연결 표시(wireless_glue.c)는 그보다 위에 그린다. 키보드는 IME 상태를 모르므로
 // "눌렀다"만 알린다. 컴퓨터로 보내는 CapsLock 은 그대로.
 #include QMK_KEYBOARD_H
@@ -87,6 +89,11 @@ static uint32_t smooth(uint32_t t) {
     return t * t * (768 - 2 * t) / 65536;
 }
 
+// 고정 색 한 채널을 현재 밝기 비율로 줄인다
+static uint8_t dim(uint8_t c, uint8_t v) {
+    return (uint16_t)c * v / 255;
+}
+
 static uint8_t mix8(uint8_t a, uint8_t b, uint32_t k) {
     return (a * (256 - k) + b * k) / 256;
 }
@@ -99,6 +106,8 @@ static void overlay_flash(uint8_t led_min, uint8_t led_max) {
         flash_on = false;
         return;
     }
+    uint8_t v  = rgb_matrix_get_val();
+    uint8_t fg = dim(FLASH_G, v), sr = dim(SWEEP_R, v), sg = dim(SWEEP_G, v), sb = dim(SWEEP_B, v);
     int32_t front = 0;
     uint32_t k    = 256;
     bool     sweep = ms >= FLASH_RISE_MS + FLASH_HOLD_MS;
@@ -114,20 +123,20 @@ static void overlay_flash(uint8_t led_min, uint8_t led_max) {
         uint8_t r0 = ws2812_leds[i].r, g0 = ws2812_leds[i].g, b0 = ws2812_leds[i].b;
         uint8_t r, g, b;
         if (!sweep) {
-            r = mix8(r0, 0, k), g = mix8(g0, FLASH_G, k), b = mix8(b0, 0, k);
+            r = mix8(r0, 0, k), g = mix8(g0, fg, k), b = mix8(b0, 0, k);
         } else {
             // u: 앞 가장자리에서 뒤로 떨어진 거리(음수 = 아직 밀리지 않은 초록 쪽)
             int32_t u = front - g_led_config.point[i].x;
             if (u < -SWEEP_EDGE) {
-                r = 0, g = FLASH_G, b = 0;
+                r = 0, g = fg, b = 0;
             } else if (u < 0) {
                 uint32_t e = smooth((u + SWEEP_EDGE) * 256 / SWEEP_EDGE);
-                r = mix8(0, SWEEP_R, e), g = mix8(FLASH_G, SWEEP_G, e), b = mix8(0, SWEEP_B, e);
+                r = mix8(0, sr, e), g = mix8(fg, sg, e), b = mix8(0, sb, e);
             } else if (u < SWEEP_SOLID) {
-                r = SWEEP_R, g = SWEEP_G, b = SWEEP_B;
+                r = sr, g = sg, b = sb;
             } else if (u < SWEEP_BAND) {
                 uint32_t e = smooth((u - SWEEP_SOLID) * 256 / SWEEP_TAIL);
-                r = mix8(SWEEP_R, r0, e), g = mix8(SWEEP_G, g0, e), b = mix8(SWEEP_B, b0, e);
+                r = mix8(sr, r0, e), g = mix8(sg, g0, e), b = mix8(sb, b0, e);
             } else {
                 continue;
             }
@@ -169,6 +178,9 @@ static void highlight(uint8_t led_min, uint8_t led_max) {
             r = 255, g = 100, b = 0;
             break;
     }
+
+    uint8_t v = rgb_matrix_get_val();
+    r = dim(r, v), g = dim(g, v), b = dim(b, v);
 
     for (uint8_t i = led_min; i < led_max; i++) rgb_matrix_set_color(i, 0, 0, 0);
 

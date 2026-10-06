@@ -8,7 +8,7 @@
 //   3 BT4 / 4 BT5         : 사용 안 함(설명서상 BT 3채널)
 //   5 2.4G                : 2.4G 모드에서 3초 누르고 있으면 동글 페어링, 짧게=재연결 (원: Fn+F 길게)
 //   6 USB                 : 사용 안 함(스위치 가운데가 유선)
-//   7 BAT                 : 무선 배터리 잔량을 Q~P 키 불빛으로 3초 표시            (원: Fn+Backspace)
+//   7 BAT                 : 무선 배터리 잔량을 Q~P 키 불빛으로 3초 표시(USB 모드는 노랑 깜박임) (원: Fn+Backspace)
 //   8 CHRG                : 충전 상태 3초 표시(빨강 충전 중 / 초록 완료)         (원: Fn+오른쪽 Space)
 //   9 SLEEP               : 초절전(무선: 즉시 절전, 유선: 조명 끔)                (원: Fn+Enter)
 //  10 RESET               : 3초 누르고 있으면 공장 초기화(EEPROM 초기화 후 재시작) (원: Fn+L_Ctrl 3초)
@@ -309,11 +309,17 @@ bool rgb_matrix_indicators_advanced_kb(uint8_t led_min, uint8_t led_max) {
 
     uint8_t now = wireless_get_devs().now;
 
-    // 배터리 잔량: 다른 불 끄고 Q(0,1)~P(0,10) 중 10%당 1키 초록
+    // 배터리 잔량: 다른 불 끄고 Q(0,1)~P(0,10) 중 10%당 1키 초록.
+    // USB 모드는 잔량을 조회하지 않아 값이 갱신되지 않으므로 숫자 대신 Q~P 전체를
+    // 노랑으로 깜박여 「USB 모드라 표시 안 함」을 알린다. 무선 모드에서는 케이블 충전 중에도 잔량이 맞게 나온다.
     if (timer_read32() < show_bat_until) {
-        uint8_t n = (*md_getp_bat() + 9) / 10;
         for (uint8_t i = led_min; i < led_max; i++) rgb_matrix_set_color(i, 0, 0, 0);
-        for (uint8_t c = 1; c <= 10 && c <= n; c++) set_rc(0, c, 0, 200, 0);
+        if (now == DEVS_USB) {
+            if (blink(250)) for (uint8_t c = 1; c <= 10; c++) set_rc(0, c, 200, 160, 0);
+        } else {
+            uint8_t n = (*md_getp_bat() + 9) / 10;
+            for (uint8_t c = 1; c <= 10 && c <= n; c++) set_rc(0, c, 0, 200, 0);
+        }
         return false;
     }
     // 충전 상태: 전체를 빨강(충전 중) / 초록(완충)
