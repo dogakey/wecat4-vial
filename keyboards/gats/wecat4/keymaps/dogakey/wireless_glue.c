@@ -311,7 +311,7 @@ bool rgb_matrix_indicators_advanced_kb(uint8_t led_min, uint8_t led_max) {
 
     // 배터리 잔량: 다른 불 끄고 Q(0,1)~P(0,10) 중 10%당 1키 초록.
     // USB 모드는 잔량을 조회하지 않아 값이 갱신되지 않으므로 숫자 대신 Q~P 전체를
-    // 노랑으로 깜박여 「USB 모드라 표시 안 함」을 알린다. 무선 모드에서는 케이블 충전 중에도 잔량이 맞게 나온다.
+    // 노랑으로 깜박여 「USB 모드라 표시 안 함」을 알린다. 충전은 스위치가 유선일 때만 되므로 무선 모드에서는 충전 중일 수 없다.
     if (timer_read32() < show_bat_until) {
         for (uint8_t i = led_min; i < led_max; i++) rgb_matrix_set_color(i, 0, 0, 0);
         if (now == DEVS_USB) {
