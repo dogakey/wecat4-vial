@@ -16,3 +16,5 @@
 
 // 5분 미사용 백라이트 끔(설명서)
 #define RGB_MATRIX_TIMEOUT 300000
+// 컴퓨터가 잠들어 USB 가 절전에 들어가면 조명을 끈다.
+#define RGB_MATRIX_SLEEP

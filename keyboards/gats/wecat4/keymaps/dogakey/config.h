@@ -37,4 +37,6 @@
 
 // ---- 절전(설명서): 5분 미사용 백라이트 끔 / 30분 미사용 수면(무선) ----
 #define RGB_MATRIX_TIMEOUT 300000
+// 컴퓨터가 잠들어 USB 가 절전에 들어가면 조명을 끈다(유선). 무선 절전에서 깰 때는 lowpower.c 가 suspend_wakeup_init() 으로 되살린다.
+#define RGB_MATRIX_SLEEP
 #define LPWR_TIMEOUT 1800000
