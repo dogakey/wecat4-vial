@@ -7,6 +7,13 @@
     "rows": 4,
     "cols": 12
   },
+  "customKeycodes": [
+    {
+      "name": "WIN/MAC",
+      "title": "Windows·macOS 모드 전환",
+      "shortName": "OS"
+    }
+  ],
   "layouts": {
     "keymap": [
       [

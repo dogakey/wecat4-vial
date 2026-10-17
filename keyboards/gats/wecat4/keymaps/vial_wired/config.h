@@ -11,6 +11,11 @@
 // 원 펌웨어와 같은 8레이어
 #define DYNAMIC_KEYMAP_LAYER_COUNT 8
 
+// 기본 레이어: 0 Windows / 1 macOS(Fn+오른쪽 Shift 로 전환, EEPROM 저장) / 2 Fn
+#define LAYER_WIN 0
+#define LAYER_MAC 1
+#define LAYER_FN 2
+
 // 디바운스 5ms (알고리즘은 rules.mk 의 DEBOUNCE_TYPE)
 #define DEBOUNCE 5
 

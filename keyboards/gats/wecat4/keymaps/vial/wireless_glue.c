@@ -13,6 +13,7 @@
 //   9 SLEEP               : 초절전(무선: 즉시 절전, 유선: 조명 끔)                (원: Fn+Enter)
 //  10 RESET               : 3초 누르고 있으면 공장 초기화(EEPROM 초기화 후 재시작) (원: Fn+L_Ctrl 3초)
 //  11 RAINBOW             : 조명을 켜고 Cycle Left/Right 효과로 바로 전환(효과는 EEPROM에 저장)
+//  12 WIN/MAC             : 기본 레이어를 Windows(0) ↔ macOS(1) 로 전환(EEPROM 저장), 1초 동안 W 또는 M 키만 켜서 알림 (원: Fn+오른쪽 Shift)
 #include QMK_KEYBOARD_H
 #include "wireless.h"
 #include "usb_main.h"
@@ -220,7 +221,20 @@ bool lpwr_is_allow_timeout_hook(void) {
     return wireless_get_devs().now != DEVS_USB;
 }
 
+// 전환 직후 이 시간 동안 다른 불을 끄고 W(Windows) 또는 M(macOS) 키 하나만 켜서 바뀐 모드를 알린다.
+#define OS_SHOW_MS 1000
+static bool     os_show;
+static uint32_t os_shown_at;
+
 bool process_record_kb(uint16_t keycode, keyrecord_t *record) {
+    if (keycode == QK_KB_12) {
+        if (record->event.pressed) {
+            set_single_persistent_default_layer(get_highest_layer(default_layer_state) == LAYER_MAC ? LAYER_WIN : LAYER_MAC);
+            os_show     = true;
+            os_shown_at = timer_read32();
+        }
+        return false;
+    }
     if (keycode < QK_KB_0 || keycode > QK_KB_11) return process_record_user(keycode, record);
 
     uint8_t k = keycode - QK_KB_0;
@@ -314,6 +328,19 @@ bool rgb_matrix_indicators_advanced_kb(uint8_t led_min, uint8_t led_max) {
     if (now == DEVS_USB && USB_DRIVER.state != USB_ACTIVE) {
         for (uint8_t i = led_min; i < led_max; i++) rgb_matrix_set_color(i, 0, 0, 0);
         return false;
+    }
+
+    if (os_show) {
+        if (timer_elapsed32(os_shown_at) < OS_SHOW_MS) {
+            for (uint8_t i = led_min; i < led_max; i++) rgb_matrix_set_color(i, 0, 0, 0);
+            if (get_highest_layer(default_layer_state) == LAYER_MAC) {
+                set_rc(2, 8, 255, 255, 255); // M
+            } else {
+                set_rc(0, 2, 255, 255, 255); // W
+            }
+            return false;
+        }
+        os_show = false;
     }
 
     // 배터리 잔량: 다른 불 끄고 Q(0,1)~P(0,10) 중 10%당 1키 초록.

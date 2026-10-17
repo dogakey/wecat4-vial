@@ -11,6 +11,11 @@
 // 원 펌웨어와 같은 8레이어
 #define DYNAMIC_KEYMAP_LAYER_COUNT 8
 
+// 기본 레이어: 0 Windows / 1 macOS(Fn+오른쪽 Shift 로 전환, EEPROM 저장) / 2 Fn
+#define LAYER_WIN 0
+#define LAYER_MAC 1
+#define LAYER_FN 2
+
 // 디바운스 30ms, eager 방식(rules.mk 의 DEBOUNCE_TYPE). 누르는 즉시 입력하고 이후 30ms 동안 같은 키의 접점 변화를 무시한다.
 // 입력 지연은 값과 무관하게 거의 0 이고, 같은 키를 30ms 안에 다시 누르는 것만 보류된다(연타 상한 약 16회/초).
 // 접점이 떨리는 스위치의 20~30ms 대 중복 입력까지 거르려고 표준 5ms 보다 길게 잡았다.

@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // 상태 강조: 레이어·Ctrl/Cmd·Shift 가 눌려 있는 동안 그 상태에서 쓸 수 있는 키만 켜고 나머지는 끈다.
-//   레이어 1/2/3+ : 그 레이어에 배정된 키(투명·KC_NO 제외)        남보라 / 보라 / 분홍
-//   Cmd(Gui)      : macOS 단축키 A C V X Z S F N T W R P Q H M , ` Space Tab ← →   빨강
-//   Ctrl          : macOS 기준 tmux·셸·줄 편집 B D S C Z L R A E U K W P N ← → ↑ Tab   흰색
-//   Shift         : Shift 로 결과가 바뀌는 키(글자·숫자·기호)      노랑(주황빛) — 거의 모든 키가 켜지므로 덜 밝게
-// 우선순위 레이어 > Cmd > Ctrl > Shift. Alt 는 강조하지 않는다. 키보드는 OS 를 모르므로 목록은 macOS 기준이다
-// (Windows 의 Ctrl 단축키 중 V·X 등은 켜지지 않는다).
+// 키보드는 OS 를 모르므로 기본 레이어(Windows 0 / macOS 1, Fn+오른쪽 Shift 로 전환)로 목록을 고른다.
+//   레이어 Fn/3/4+ : 그 레이어에 배정된 키(투명·KC_NO 제외)       남보라 / 보라 / 분홍
+//   주 단축키 수식(Windows Ctrl, macOS Cmd)                          빨강
+//     Windows Ctrl : A C V X Z Y S F N T W R P O H Tab ← →
+//     macOS Cmd    : A C V X Z S F N T W R P Q H M , ` Space Tab ← →
+//   보조 수식(Windows Win, macOS Ctrl)                               흰색
+//     Windows Win  : D E L R I S V Tab ← → ↑ ↓
+//     macOS Ctrl   : tmux·셸·줄 편집 B D S C Z L R A E U K W P N ← → ↑ Tab
+//   Shift          : Shift 로 결과가 바뀌는 키(글자·숫자·기호)     노랑(주황빛) — 거의 모든 키가 켜지므로 덜 밝게
+// 우선순위 레이어 > 주 수식 > 보조 수식 > Shift. Alt 는 강조하지 않는다.
 // 판정은 매 프레임 현재 키맵(Vial 편집 반영)을 읽어서 하므로 키를 옮겨도 다시 구울 필요가 없다.
 //
 // 한/영 번쩍임: 언어 전환 키(CapsLock·RAlt·Lang1/2·일본어 키, is_lang_switch)를 누르면 원래 조명 → 초록으로 smoothstep 교차 전환(FLASH_RISE_MS)해 FLASH_HOLD_MS 유지한 뒤,
@@ -41,7 +45,7 @@ static void highlight(uint8_t led_min, uint8_t led_max);
 static bool     flash_on;
 static uint32_t flash_at;
 
-enum { HL_NONE, HL_LAYER, HL_GUI, HL_CTRL, HL_SHIFT };
+enum { HL_NONE, HL_LAYER, HL_MAIN, HL_SUB, HL_SHIFT };
 
 // 탭홀드·수식 조합 키코드는 탭 쪽 기본 키코드로 판정한다.
 static uint16_t basic_kc(uint16_t kc) {
@@ -49,6 +53,28 @@ static uint16_t basic_kc(uint16_t kc) {
     if (IS_QK_LAYER_TAP(kc)) return QK_LAYER_TAP_GET_TAP_KEYCODE(kc);
     if (IS_QK_MODS(kc)) return QK_MODS_GET_BASIC_KEYCODE(kc);
     return kc;
+}
+
+// Windows Ctrl: 복사·붙여넣기·실행 취소·다시 실행·저장·찾기·새로 만들기·탭·창 닫기·새로 고침·인쇄·열기·바꾸기, 단어 이동
+static bool is_win_ctrl_key(uint16_t kc) {
+    switch (kc) {
+        case KC_A: case KC_C: case KC_V: case KC_X: case KC_Z: case KC_Y: case KC_S: case KC_F: case KC_N:
+        case KC_T: case KC_W: case KC_R: case KC_P: case KC_O: case KC_H: case KC_TAB: case KC_LEFT: case KC_RGHT:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// Windows Win: 바탕 화면·탐색기·잠금·실행·설정·검색·클립보드 기록, 작업 보기, 창 배치(←→↑↓)
+static bool is_win_gui_key(uint16_t kc) {
+    switch (kc) {
+        case KC_D: case KC_E: case KC_L: case KC_R: case KC_I: case KC_S: case KC_V: case KC_TAB:
+        case KC_LEFT: case KC_RGHT: case KC_UP: case KC_DOWN:
+            return true;
+        default:
+            return false;
+    }
 }
 
 // Cmd(Gui): macOS 공통 단축키
@@ -171,9 +197,12 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
 static void highlight(uint8_t led_min, uint8_t led_max) {
     uint8_t layer = get_highest_layer(layer_state);
     uint8_t mods  = get_mods();
-    uint8_t state = layer > 0                                  ? HL_LAYER
-                    : (mods & MOD_MASK_GUI)                    ? HL_GUI
-                    : (mods & MOD_MASK_CTRL)                   ? HL_CTRL
+    bool    mac   = get_highest_layer(default_layer_state) == LAYER_MAC;
+    uint8_t mainm = mac ? MOD_MASK_GUI : MOD_MASK_CTRL;
+    uint8_t subm  = mac ? MOD_MASK_CTRL : MOD_MASK_GUI;
+    uint8_t state = layer >= LAYER_FN                          ? HL_LAYER
+                    : (mods & mainm)                           ? HL_MAIN
+                    : (mods & subm)                            ? HL_SUB
                     : (mods & MOD_MASK_SHIFT)                  ? HL_SHIFT
                                                                : HL_NONE;
     if (state == HL_NONE) return;
@@ -181,18 +210,18 @@ static void highlight(uint8_t led_min, uint8_t led_max) {
     uint8_t r, g, b;
     switch (state) {
         case HL_LAYER: // 보라 계열 한 가지로 묶고 단계만 바꾼다(언어 전환 번쩍임의 초록·하늘색과 겹치지 않게)
-            if (layer == 1) {
+            if (layer == LAYER_FN) {
                 r = 70, g = 0, b = 255; // 남보라
-            } else if (layer == 2) {
+            } else if (layer == LAYER_FN + 1) {
                 r = 162, g = 0, b = 255; // 보라
             } else {
                 r = 255, g = 0, b = 116; // 분홍
             }
             break;
-        case HL_GUI: // Cmd/Win
+        case HL_MAIN: // Windows Ctrl / macOS Cmd
             r = 255, g = 0, b = 0;
             break;
-        case HL_CTRL: // 흰색(밝게 보여 조금 낮춤)
+        case HL_SUB: // Windows Win / macOS Ctrl, 흰색(밝게 보여 조금 낮춤)
             r = 200, g = 200, b = 200;
             break;
         default:
@@ -217,7 +246,13 @@ static void highlight(uint8_t led_min, uint8_t led_max) {
             } else {
                 // 투명 키는 아래 레이어로 내려가 실제로 입력될 키를 본다.
                 uint16_t kc = basic_kc(keymap_key_to_keycode(layer_switch_get_layer(pos), pos));
-                on          = state == HL_SHIFT ? is_shiftable(kc) : state == HL_GUI ? is_cmd_key(kc) : is_ctrl_key(kc);
+                if (state == HL_SHIFT) {
+                    on = is_shiftable(kc);
+                } else if (state == HL_MAIN) {
+                    on = mac ? is_cmd_key(kc) : is_win_ctrl_key(kc);
+                } else {
+                    on = mac ? is_ctrl_key(kc) : is_win_gui_key(kc);
+                }
             }
             if (on) rgb_matrix_set_color(i, r, g, b);
         }
