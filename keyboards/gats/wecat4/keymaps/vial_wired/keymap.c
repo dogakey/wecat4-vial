@@ -68,6 +68,8 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 
 // 전환 직후 이 시간 동안 다른 불을 끄고 W(Windows) 또는 M(macOS) 키 하나만 켜서 바뀐 모드를 알린다.
 #define OS_SHOW_MS 1000
+// Fn 을 누르고 있는 동안 현재 모드 키 깜박임 반주기(켜짐·꺼짐 각각), 초당 2회
+#define MODE_BLINK_HALF_MS 250
 static bool     os_show;
 static uint32_t os_shown_at;
 
@@ -105,6 +107,15 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
             return false;
         }
         os_show = false;
+    }
+    // Fn 을 누르고 있는 동안 지금 모드 키(Windows W / macOS M)를 초당 2회 흰색으로 깜박여 현재 모드를 알린다.
+    if (get_highest_layer(layer_state) >= LAYER_FN) {
+        bool    mac = get_highest_layer(default_layer_state) == LAYER_MAC;
+        uint8_t i   = g_led_config.matrix_co[mac ? 2 : 0][mac ? 8 : 2];
+        if (i != NO_LED && i >= led_min && i < led_max) {
+            uint8_t c = (timer_read32() / MODE_BLINK_HALF_MS) % 2 ? 255 : 0;
+            rgb_matrix_set_color(i, c, c, c);
+        }
     }
     return true;
 }
