@@ -15,6 +15,7 @@
 //  11 RAINBOW             : 조명을 켜고 Cycle Left/Right 효과로 바로 전환(효과는 EEPROM에 저장)
 #include QMK_KEYBOARD_H
 #include "wireless.h"
+#include "usb_main.h"
 
 // ---- 하드웨어 핀 ----
 // 모드 스위치 C14/C15 는 원 펌웨어의 핀 설정과 같다. 충전 완료 핀 A15 는 같은 ODM 보드(dr6p)의 값을 따른 것이다.
@@ -308,6 +309,12 @@ bool rgb_matrix_indicators_advanced_kb(uint8_t led_min, uint8_t led_max) {
     if (!rgb_matrix_indicators_advanced_user(led_min, led_max)) return false;
 
     uint8_t now = wireless_get_devs().now;
+
+    // 유선 모드에서 컴퓨터가 키보드를 쓰고 있지 않으면(케이블 없음·충전기·잠든 컴퓨터) 조명을 끈다.
+    if (now == DEVS_USB && USB_DRIVER.state != USB_ACTIVE) {
+        for (uint8_t i = led_min; i < led_max; i++) rgb_matrix_set_color(i, 0, 0, 0);
+        return false;
+    }
 
     // 배터리 잔량: 다른 불 끄고 Q(0,1)~P(0,10) 중 10%당 1키 초록.
     // USB 모드는 잔량을 조회하지 않아 값이 갱신되지 않으므로 숫자 대신 Q~P 전체를

@@ -60,3 +60,14 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     )
 };
 // clang-format on
+
+#include "usb_main.h"
+
+// 컴퓨터가 키보드를 쓰고 있지 않으면(충전기·잠든 컴퓨터) 조명을 끈다.
+bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
+    if (USB_DRIVER.state != USB_ACTIVE) {
+        for (uint8_t i = led_min; i < led_max; i++) rgb_matrix_set_color(i, 0, 0, 0);
+        return false;
+    }
+    return true;
+}
