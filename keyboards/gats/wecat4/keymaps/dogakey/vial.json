@@ -72,6 +72,11 @@
       "name": "WIN/MAC",
       "title": "Windows·macOS 모드 전환",
       "shortName": "OS"
+    },
+    {
+      "name": "HAN/ENG",
+      "title": "한/영: 톡 = 언어 전환, 누른 채 치기 = 그동안만 다른 언어(macOS CapsLock 100ms / Windows 한/영 키)",
+      "shortName": "H/E"
     }
   ],
   "layouts": {

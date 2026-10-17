@@ -14,6 +14,7 @@
 //  10 RESET               : 3초 누르고 있으면 공장 초기화(EEPROM 초기화 후 재시작) (원: Fn+L_Ctrl 3초)
 //  11 RAINBOW             : 조명을 켜고 Cycle Left/Right 효과로 바로 전환(효과는 EEPROM에 저장)
 //  12 WIN/MAC             : 기본 레이어를 Windows(0) ↔ macOS(1) 로 전환(EEPROM 저장), 1초 동안 W 또는 M 키만 켜서 알림 (원: Fn+오른쪽 Shift)
+//  13 HAN/ENG             : 한/영, hangul.c(여기서는 process_record_user 로 넘긴다)
 #include QMK_KEYBOARD_H
 #include "wireless.h"
 #include "usb_main.h"

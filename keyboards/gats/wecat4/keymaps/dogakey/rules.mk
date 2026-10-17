@@ -15,7 +15,7 @@ endif
 # STOP 딥슬립은 제조사 기본값(켬) 유지 — lowpower.c 가 STOP 함수를 무조건 호출해 끌 수 없다.
 # USB 연결 중엔 wireless_glue.c 훅으로 절전에 들어가지 않는다.
 include keyboards/gats/wecat4/wireless/wireless.mk
-SRC += wireless_glue.c highlight.c
+SRC += wireless_glue.c highlight.c hangul.c
 
 # 진단 빌드: qmk compile ... -e WECAT4_DIAG=yes
 # 무선 모드에서도 USB 를 유지하고 raw HID 0xD1 로 무선·절전 상태를 읽는다(diag.c).

@@ -16,28 +16,32 @@
 #define SLEEP   QK_KB_9  // 초절전
 #define FRESET  QK_KB_10 // 3초 누르면 공장 초기화
 #define WINMAC  QK_KB_12 // Windows ↔ macOS 기본 레이어 전환
+// HANGUL  QK_KB_13 = 한/영(hangul.h, 처리는 hangul.c)
 
 #include QMK_KEYBOARD_H
+#include "hangul.h"
 
 // clang-format off
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
+    // Windows: 오른쪽 Alt 자리 = 한/영
     [LAYER_WIN] = LAYOUT(
         KC_TAB,  KC_Q,    KC_W,    KC_E,    KC_R,    KC_T,    KC_Y,    KC_U,    KC_I,    KC_O,    KC_P,    KC_BSPC,
         KC_CAPS, KC_A,    KC_S,    KC_D,    KC_F,    KC_G,    KC_H,    KC_J,    KC_K,    KC_L,             KC_ENT,
         KC_LSFT, KC_SLSH, KC_Z,    KC_X,    KC_C,    KC_V,    KC_B,    KC_N,    KC_M,    KC_COMM, KC_DOT,  KC_RSFT,
-        KC_LCTL, KC_LGUI, KC_LALT,          KC_SPC,  MO(LAYER_FN),     KC_SPC,           KC_RALT, KC_APP,  KC_RCTL
+        KC_LCTL, KC_LGUI, KC_LALT,          KC_SPC,  MO(LAYER_FN),     KC_SPC,           HANGUL,  KC_APP,  KC_RCTL
     ),
+    // macOS: CapsLock 자리 = 한/영(대문자 고정 CapsLock 은 Fn+그 자리)
     [LAYER_MAC] = LAYOUT(
         KC_TAB,  KC_Q,    KC_W,    KC_E,    KC_R,    KC_T,    KC_Y,    KC_U,    KC_I,    KC_O,    KC_P,    KC_BSPC,
-        KC_CAPS, KC_A,    KC_S,    KC_D,    KC_F,    KC_G,    KC_H,    KC_J,    KC_K,    KC_L,             KC_ENT,
+        HANGUL,  KC_A,    KC_S,    KC_D,    KC_F,    KC_G,    KC_H,    KC_J,    KC_K,    KC_L,             KC_ENT,
         KC_LSFT, KC_SLSH, KC_Z,    KC_X,    KC_C,    KC_V,    KC_B,    KC_N,    KC_M,    KC_COMM, KC_DOT,  KC_RSFT,
         KC_LCTL, KC_LGUI, KC_LALT,          KC_SPC,  MO(LAYER_FN),     KC_SPC,           KC_RALT, KC_APP,  KC_RCTL
     ),
     // Fn: 숫자·기호, 방향키(. / App / RAlt / RCtl), 조명(Z 효과, X·C 속도, B·M 색상, N·H 밝기, J·G 채도),
-    //     A·S·D BT1~3, F 2.4G, Backspace 배터리, Enter 초절전, 오른쪽 Space 충전 상태, LCtrl 3초 초기화, Win 잠금
+    //     CapsLock 자리 = CapsLock, A·S·D BT1~3, F 2.4G, Backspace 배터리, Enter 초절전, 오른쪽 Space 충전 상태, LCtrl 3초 초기화, Win 잠금
     [LAYER_FN] = LAYOUT(
         KC_ESC,  KC_1,    KC_2,    KC_3,    KC_4,    KC_5,    KC_6,    KC_7,    KC_8,    KC_9,    KC_0,    BAT,
-        _______, BT1,     BT2,     BT3,     WL_2G4,  RM_SATU, RM_VALU, RM_SATD, KC_MINS, KC_EQL,           SLEEP,
+        KC_CAPS, BT1,     BT2,     BT3,     WL_2G4,  RM_SATU, RM_VALU, RM_SATD, KC_MINS, KC_EQL,           SLEEP,
         _______, KC_GRV,  RM_NEXT, RM_SPDD, RM_SPDU, _______, RM_HUED, RM_VALD, RM_HUEU, _______, KC_UP,   WINMAC,
         FRESET,  GU_TOGG, _______,          _______, _______,          CHRG,             KC_LEFT, KC_DOWN, KC_RGHT
     ),

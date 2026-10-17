@@ -2,17 +2,21 @@
 // 상태 강조: 레이어·Ctrl/Cmd·Shift 가 눌려 있는 동안 그 상태에서 쓸 수 있는 키만 켜고 나머지는 끈다.
 // 키보드는 OS 를 모르므로 기본 레이어(Windows 0 / macOS 1, Fn+오른쪽 Shift 로 전환)로 목록을 고른다.
 //   레이어 Fn/3/4+ : 그 레이어에 배정된 키(투명·KC_NO 제외)       남보라 / 보라 / 분홍
+//   한/영 키 누르는 동안 : 글자 키(A~Z)                             초록(번쩍임과 같은 색)
 //   주 단축키 수식(Windows Ctrl, macOS Cmd)                          빨강
 //     Windows Ctrl : A C V X Z Y S F N T W R P O H Tab ← →
 //     macOS Cmd    : A C V X Z S F N T W R P Q H M , ` Space Tab ← →
 //   보조 수식(Windows Win, macOS Ctrl)                               흰색
 //     Windows Win  : D E L R I S V Tab ← → ↑ ↓
 //     macOS Ctrl   : tmux·셸·줄 편집 B D S C Z L R A E U K W P N ← → ↑ Tab
+//   Alt(macOS Option)                                                청록
+//     Windows Alt  : Tab 창 전환, F4 닫기, ← → 뒤로·앞으로
+//     macOS Option : ← → 단어 이동, Backspace 단어 지우기
 //   Shift          : Shift 로 결과가 바뀌는 키(글자·숫자·기호)     노랑(주황빛) — 거의 모든 키가 켜지므로 덜 밝게
-// 우선순위 레이어 > 주 수식 > 보조 수식 > Shift. Alt 는 강조하지 않는다.
+// 우선순위 레이어 > 한/영 누르는 동안 > 주 수식 > 보조 수식 > Alt > Shift.
 // 판정은 매 프레임 현재 키맵(Vial 편집 반영)을 읽어서 하므로 키를 옮겨도 다시 구울 필요가 없다.
 //
-// 한/영 번쩍임: 언어 전환 키(CapsLock·RAlt·Lang1/2·일본어 키, is_lang_switch)를 누르면 원래 조명 → 초록으로 smoothstep 교차 전환(FLASH_RISE_MS)해 FLASH_HOLD_MS 유지한 뒤,
+// 한/영 번쩍임: 언어 전환 키(CapsLock·RAlt·Lang1/2·일본어 키, is_lang_switch)를 누르거나 한/영 키(hangul.c)를 톡 치고 떼면 원래 조명 → 초록으로 smoothstep 교차 전환(FLASH_RISE_MS)해 FLASH_HOLD_MS 유지한 뒤,
 // 연한 하늘색 띠가 왼쪽에서 오른쪽으로 FLASH_SWEEP_MS 동안 흘러 초록을 오른쪽으로 밀어내고 띠 뒤로 원래 조명이
 // 돌아온다(순간 점멸·즉시 복귀는 눈이 피로함).
 // 강조색·번쩍임 색은 현재 RGB 밝기에 비례해 줄인다(효과와 같은 기준) — 고정값으로 칠하면 강조 중에는 밝기 키가 듣지 않는다.
@@ -21,6 +25,7 @@
 // "눌렀다"만 알린다. 컴퓨터로 보내는 CapsLock 은 그대로.
 #include QMK_KEYBOARD_H
 #include "ws2812.h"
+#include "hangul.h"
 
 // 드라이버(platforms/chibios/drivers/ws2812_*.c)의 프레임 버퍼. 헤더에 선언이 없어 직접 선언한다.
 extern ws2812_led_t ws2812_leds[];
@@ -45,7 +50,7 @@ static void highlight(uint8_t led_min, uint8_t led_max);
 static bool     flash_on;
 static uint32_t flash_at;
 
-enum { HL_NONE, HL_LAYER, HL_MAIN, HL_SUB, HL_SHIFT };
+enum { HL_NONE, HL_LAYER, HL_HANGUL, HL_MAIN, HL_SUB, HL_ALT, HL_SHIFT };
 
 // 탭홀드·수식 조합 키코드는 탭 쪽 기본 키코드로 판정한다.
 static uint16_t basic_kc(uint16_t kc) {
@@ -61,6 +66,20 @@ static bool is_win_ctrl_key(uint16_t kc) {
         case KC_A: case KC_C: case KC_V: case KC_X: case KC_Z: case KC_Y: case KC_S: case KC_F: case KC_N:
         case KC_T: case KC_W: case KC_R: case KC_P: case KC_O: case KC_H: case KC_TAB: case KC_LEFT: case KC_RGHT:
             return true;
+        default:
+            return false;
+    }
+}
+
+// Alt: Windows 창 전환(Tab)·닫기(F4)·뒤로/앞으로(← →), macOS Option 단어 이동(← →)·단어 지우기(Backspace)
+static bool is_alt_key(uint16_t kc, bool mac) {
+    switch (kc) {
+        case KC_LEFT: case KC_RGHT:
+            return true;
+        case KC_BSPC:
+            return mac;
+        case KC_TAB: case KC_F4:
+            return !mac;
         default:
             return false;
     }
@@ -118,10 +137,18 @@ static bool is_lang_switch(uint16_t kc) {
     }
 }
 
+static void start_flash(void) {
+    flash_on = true;
+    flash_at = timer_read32();
+}
+
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
-    if (is_lang_switch(keycode) && record->event.pressed) {
-        flash_on = true;
-        flash_at = timer_read32();
+    if (is_lang_switch(keycode) && record->event.pressed) start_flash();
+    bool tapped;
+    if (hangul_record(keycode, record, &tapped)) {
+        // 톡이면 뗄 때 초록 번쩍임, 누른 채 쳤으면 떼는 즉시 원래 조명
+        if (tapped) start_flash();
+        return false;
     }
     return true;
 }
@@ -201,8 +228,10 @@ static void highlight(uint8_t led_min, uint8_t led_max) {
     uint8_t mainm = mac ? MOD_MASK_GUI : MOD_MASK_CTRL;
     uint8_t subm  = mac ? MOD_MASK_CTRL : MOD_MASK_GUI;
     uint8_t state = layer >= LAYER_FN                          ? HL_LAYER
+                    : hangul_held()                            ? HL_HANGUL
                     : (mods & mainm)                           ? HL_MAIN
                     : (mods & subm)                            ? HL_SUB
+                    : (mods & MOD_MASK_ALT)                    ? HL_ALT
                     : (mods & MOD_MASK_SHIFT)                  ? HL_SHIFT
                                                                : HL_NONE;
     if (state == HL_NONE) return;
@@ -218,11 +247,17 @@ static void highlight(uint8_t led_min, uint8_t led_max) {
                 r = 255, g = 0, b = 116; // 분홍
             }
             break;
+        case HL_HANGUL: // 한/영 누르는 동안
+            r = 0, g = FLASH_G, b = 0;
+            break;
         case HL_MAIN: // Windows Ctrl / macOS Cmd
             r = 255, g = 0, b = 0;
             break;
         case HL_SUB: // Windows Win / macOS Ctrl, 흰색(밝게 보여 조금 낮춤)
             r = 200, g = 200, b = 200;
+            break;
+        case HL_ALT: // Alt / Option: 청록
+            r = 0, g = 200, b = 160;
             break;
         default:
             r = 255, g = 100, b = 0;
@@ -246,8 +281,12 @@ static void highlight(uint8_t led_min, uint8_t led_max) {
             } else {
                 // 투명 키는 아래 레이어로 내려가 실제로 입력될 키를 본다.
                 uint16_t kc = basic_kc(keymap_key_to_keycode(layer_switch_get_layer(pos), pos));
-                if (state == HL_SHIFT) {
+                if (state == HL_HANGUL) {
+                    on = kc >= KC_A && kc <= KC_Z;
+                } else if (state == HL_SHIFT) {
                     on = is_shiftable(kc);
+                } else if (state == HL_ALT) {
+                    on = is_alt_key(kc, mac);
                 } else if (state == HL_MAIN) {
                     on = mac ? is_cmd_key(kc) : is_win_ctrl_key(kc);
                 } else {
