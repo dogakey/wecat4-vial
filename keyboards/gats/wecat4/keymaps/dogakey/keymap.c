@@ -10,7 +10,7 @@
 #define BT1     QK_KB_0  // BT 채널 1 (3초 = 새 페어링)
 #define BT2     QK_KB_1  // BT 채널 2 (3초 = 새 페어링)
 #define BT3     QK_KB_2  // BT 채널 3 (3초 = 새 페어링)
-#define WL_2G4  QK_KB_5  // 2.4G (3초 = 동글 페어링)
+#define WL_2G4  QK_KB_5  // 2.4G (누르면 즉시 동글 페어링)
 #define BAT     QK_KB_7  // 배터리 잔량을 Q~P 불빛으로 표시
 #define CHRG    QK_KB_8  // 충전 상태 표시(빨강 충전 중 / 초록 완료)
 #define SLEEP   QK_KB_9  // 초절전
