@@ -32,7 +32,11 @@
 #define BT3_NAME "WECAT4 BT3"
 #define BT4_NAME "WECAT4 BT4"
 #define BT5_NAME "WECAT4 BT5"
-#define DONGLE_PRODUCT "WECAT4 Dongle"
+// 2.4G 동글이 PC에 알릴 이름. 원 펌웨어와 같은 값이어야 동글이 키보드를 받아들인다.
+#define DONGLE_MANUFACTURER "Hangsheng"
+#define DONGLE_PRODUCT "TH40 PRO-2.4G  Dongle"
+// 무선 칩 버전과 관계없이 이름을 UTF-16 그대로 보낸다(원 펌웨어와 같음)
+#define MD_XX_ENABLE true
 // 무선 리포트 키 수(제조사 wecat7 설정과 동일)
 #define WLS_KEYBOARD_REPORT_KEYS 5
 // 설정 저장: 마지막 연결 BT 채널 1바이트

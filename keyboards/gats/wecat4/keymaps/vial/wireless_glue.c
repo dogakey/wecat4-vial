@@ -51,6 +51,14 @@ static int8_t          held_k = -1; // 길게 누르기 판정 중인 커스텀 
 static bool            long_done;
 static uint32_t        show_bat_until, show_chrg_until;
 
+// 2.4G 동글은 꽂혀 전원이 들어온 직후 잠깐만 새 페어링을 받는다. 페어링 명령을 한 번만 보내면
+// 동글을 언제 꽂았는지에 따라 붙거나 안 붙으므로, 2.4G 키를 누르면 PAIR_WINDOW_MS 동안
+// PAIR_RETRY_MS 마다 다시 보내 그 사이 아무 때나 동글을 꽂아도 붙게 한다. 연결되면 즉시 멈춘다.
+#define PAIR_WINDOW_MS 60000
+#define PAIR_RETRY_MS 1500
+static uint32_t pair_until; // 0 = 페어링 반복 안 함
+static uint32_t pair_next;
+
 // EEPROM kb 영역 1바이트 = 마지막 BT 채널
 static uint8_t load_last_bt(void) {
     uint8_t v = 0;
@@ -91,7 +99,7 @@ static void arm_reconnect(void) {
 }
 
 static void reconnect_task(void) {
-    if (!reconn_left || (int32_t)(timer_read32() - reconn_at) < 0) return;
+    if (!reconn_left || pair_until || (int32_t)(timer_read32() - reconn_at) < 0) return;
     uint8_t now   = wireless_get_devs().now;
     uint8_t state = *md_getp_state();
     if (now == DEVS_USB || state == MD_STATE_CONNECTED || state == MD_STATE_PAIRING) {
@@ -104,13 +112,44 @@ static void reconnect_task(void) {
     reconn_at = timer_read32() + 2000;
 }
 
+// 첫 명령은 누르는 즉시 보낸다. reset 명령이 연결 상태를 끊음으로 바꾸므로, 이미 붙어 있어도
+// pair_task 가 「연결됨」으로 보고 곧바로 멈추지 않고 새 페어링을 이어 간다.
+static void pair_start(void) {
+    reconn_left = 0;
+    pair_until  = timer_read32() + PAIR_WINDOW_MS;
+    pair_next   = timer_read32() + PAIR_RETRY_MS;
+    wireless_devs_change(wireless_get_devs().now, DEVS_2G4, true);
+}
+
+static void pair_task(void) {
+    if (!pair_until) return;
+    uint32_t t = timer_read32();
+    if (cur_mode != MODE_2G4 || *md_getp_state() == MD_STATE_CONNECTED || (int32_t)(t - pair_until) >= 0) {
+        pair_until = 0;
+        return;
+    }
+    if ((int32_t)(t - pair_next) < 0 || lpwr_get_state() != LPWR_NORMAL) return;
+    wireless_devs_change(wireless_get_devs().now, DEVS_2G4, true);
+    pair_next = t + PAIR_RETRY_MS;
+}
+
 static void apply_mode(uint8_t mode) {
     uint8_t now = wireless_get_devs().now;
     if (mode != MODE_NONE) set_nkro_for_mode(mode);
     switch (mode) {
-        case MODE_USB: wireless_devs_change(now, DEVS_USB, false); break;
-        case MODE_BT: wireless_devs_change(now, load_last_bt(), false); break;
-        case MODE_2G4: wireless_devs_change(now, DEVS_2G4, false); break;
+        // 원 펌웨어처럼 무선 칩 쪽 PB1 을 유선이면 LOW, 무선이면 HIGH 로 둔다(전환 명령 전에)
+        case MODE_USB:
+            gpio_write_pin_low(B1);
+            wireless_devs_change(now, DEVS_USB, false);
+            break;
+        case MODE_BT:
+            gpio_write_pin_high(B1);
+            wireless_devs_change(now, load_last_bt(), false);
+            break;
+        case MODE_2G4:
+            gpio_write_pin_high(B1);
+            wireless_devs_change(now, DEVS_2G4, false);
+            break;
         default: break;
     }
     cur_mode = mode;
@@ -125,6 +164,9 @@ void keyboard_post_init_kb(void) {
     gpio_set_pin_input_high(WLS_MODE_PIN_A);
     gpio_set_pin_input_high(WLS_MODE_PIN_B);
     gpio_set_pin_input(CHRG_FULL_PIN);
+    // 원 펌웨어 초기화와 같이 PB1 출력 HIGH
+    gpio_set_pin_output(B1);
+    gpio_write_pin_high(B1);
 
     wireless_init(&devs);
     md_sleep_bt(true);  // 모듈 쪽 무선 수면 타이머 사용(설명서: 30분 미사용 수면) — 인자 의미는 라이브러리 문서가 없어 확인하지 못함
@@ -138,7 +180,7 @@ void keyboard_post_init_kb(void) {
 }
 
 // 제조사 wireless.c의 housekeeping_task_kb → wireless_task → 이 훅을 매 주기 호출
-// 3초 이상 누르고 있으면 떼기 전에 실행: BT1~3 = 그 채널 새 페어링, 2.4G = 동글 페어링, RESET = 공장 초기화
+// 3초 이상 누르고 있으면 떼기 전에 실행: BT1~3 = 그 채널 새 페어링, RESET = 공장 초기화 (2.4G 는 누르는 즉시 pair_start)
 static void long_press_task(void) {
     if (held_k < 0 || long_done || timer_elapsed(press_time) < 3000) return;
     long_done   = true;
@@ -148,9 +190,6 @@ static void long_press_task(void) {
         case 1:
         case 2:
             if (cur_mode == MODE_BT) wireless_devs_change(now, DEVS_BT1 + held_k, true);
-            break;
-        case 5:
-            if (cur_mode == MODE_2G4) wireless_devs_change(now, DEVS_2G4, true);
             break;
         case 10:
             eeconfig_disable();
@@ -186,7 +225,7 @@ static void conn_track(void) {
     } else if (!disc_since) {
         disc_since = t ? t : 1;
         done_until = 0;
-    } else if (state != MD_STATE_PAIRING && held_k < 0 && lpwr_get_state() == LPWR_NORMAL &&
+    } else if (state != MD_STATE_PAIRING && !pair_until && held_k < 0 && lpwr_get_state() == LPWR_NORMAL &&
                timer_elapsed32(disc_since) >= CONN_SLEEP_MS && last_input_activity_elapsed() >= CONN_SLEEP_MS) {
         disc_since = 0; // 깨어난 뒤 다시 0초부터 잰다
         lpwr_set_manual_timeout(true);
@@ -197,6 +236,7 @@ void wireless_pre_task(void) {
     static uint32_t t;
     static uint8_t  last;
     long_press_task();
+    pair_task();
     reconnect_task();
     conn_track();
     if (timer_elapsed32(t) < 50) return;
@@ -207,6 +247,11 @@ void wireless_pre_task(void) {
 }
 
 void wireless_devs_change_kb(uint8_t old_devs, uint8_t new_devs, bool reset) {
+    if (new_devs == DEVS_USB) {
+        gpio_write_pin_low(B1);
+    } else {
+        gpio_write_pin_high(B1);
+    }
     save_last_bt(new_devs);
 }
 
@@ -242,10 +287,11 @@ bool process_record_kb(uint16_t keycode, keyrecord_t *record) {
     uint8_t k = keycode - QK_KB_0;
     if (record->event.pressed) {
         press_time = timer_read();
-        if (k <= 2 || k == 5 || k == 10) {
+        if (k <= 2 || k == 10) {
             held_k    = k;
             long_done = false;
         }
+        if (k == 5 && cur_mode == MODE_2G4) pair_start();
         // 채널 전환은 누르는 즉시. 같은 채널이어도 무선 칩에 전환 명령을 다시 보내 재연결을 시도한다
         if (k <= 2 && cur_mode == MODE_BT) {
             reconn_left = 0; // 직접 고른 채널에 막 붙은 연결을 남아 있던 재시도가 끊지 않게 한다
@@ -267,11 +313,7 @@ bool process_record_kb(uint16_t keycode, keyrecord_t *record) {
         return false;
     }
 
-    // 뗄 때: 2.4G 를 짧게 눌렀으면 재연결, 길게 누르기 판정 종료
-    if (k == 5 && !long_done && cur_mode == MODE_2G4) {
-        reconn_left = 0;
-        wireless_devs_change(wireless_get_devs().now, DEVS_2G4, false);
-    }
+    // 뗄 때: 길게 누르기 판정 종료
     if (held_k == k) held_k = -1;
     return false;
 }
@@ -370,7 +412,7 @@ bool rgb_matrix_indicators_advanced_kb(uint8_t led_min, uint8_t led_max) {
     // 페어링이 곧바로 끝나도(호스트가 즉시 붙음) 손을 떼기 전까지는 깜박임이 보인다.
     bool    chan_key = held_k >= 0 && (held_k <= 2 || held_k == 5);
     uint8_t held_dev = held_k == 5 ? DEVS_2G4 : DEVS_BT1 + held_k;
-    bool    pairing  = now != DEVS_USB && *md_getp_state() == MD_STATE_PAIRING;
+    bool    pairing  = now != DEVS_USB && (*md_getp_state() == MD_STATE_PAIRING || pair_until);
     if (chan_key || pairing) {
         for (uint8_t i = led_min; i < led_max; i++) rgb_matrix_set_color(i, 0, 0, 0);
         if (chan_key && !long_done) {
