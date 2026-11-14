@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # vial-qmk 작업 사본에 이 저장소의 키보드 정의를 복사하고 빌드한다.
-#   사용법: QMK_HOME=<vial-qmk 경로> scripts/build.sh [vial|dogakey|vial_wired] [qmk compile 추가 인자...]
+#   사용법: QMK_HOME=<vial-qmk 경로> scripts/build.sh [vial|dogakey|dogakey34|vial_wired] [qmk compile 추가 인자...]
 #   결과:   build/gats_wecat4_<keymap>.bin 과 SHA256SUMS
 # 검증한 vial-qmk 커밋은 아래 VIAL_QMK_COMMIT 이다. 다른 커밋이면 경고만 하고 계속한다.
 set -euo pipefail
