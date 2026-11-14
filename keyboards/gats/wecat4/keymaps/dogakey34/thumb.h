@@ -3,10 +3,10 @@
 
 #include QMK_KEYBOARD_H
 
-// vial.json customKeycodes 순서(QK_KB_n). 0~11 은 wireless_glue.c 가 처리한다.
-#define HANGUL QK_KB_12 // 한/영: 톡 = 전환, 누른 채 치면 그동안 영문
-#define THUMB QK_KB_13  // L1 엄지: 톡 = 기호 원샷(레이어 3), 누름 = 숫자(레이어 2)
-#define SPC_NAV QK_KB_14 // 오른쪽 Space: 톡 = Space, 200ms 누름 = 편집 레이어(4)
+// QK_KB_12~14 (0~11은 wireless_glue.c에서 처리)
+#define HANGUL QK_KB_12 // 탭: 한/영 전환, 홀드: 영문 타이핑
+#define THUMB QK_KB_13  // 탭: 기호(L3 원샷), 홀드: 숫자(L2)
+#define SPC_NAV QK_KB_14 // 탭: Space, 200ms 홀드: 편집(L4)
 
 #define LAYER_MAC 0
 #define LAYER_WIN 1
@@ -16,9 +16,7 @@
 #define LAYER_FN 5
 #define LAYER_SYM_WIN 6
 
-// 한/영 키를 누른 채 다른 키를 치는 중(그동안 영문)
 bool hangul_held(void);
 
-// highlight.c
 void highlight_record(uint16_t keycode, keyrecord_t *record);
 void highlight_flash(void);

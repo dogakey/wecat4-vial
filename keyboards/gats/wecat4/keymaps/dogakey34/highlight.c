@@ -1,40 +1,17 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// 상태 강조: 레이어·Ctrl/Cmd·Shift 가 눌려 있는 동안 그 상태에서 쓸 수 있는 키만 켜고 나머지는 끈다.
-// 규칙과 색:
-//   레이어 2/3/4+ : 그 레이어에 배정된 키(투명·KC_NO 제외)        남보라 / 보라 / 분홍 (0·1 은 맥·윈도우 기본 레이어)
-//   한/영 누르는 동안 : 글자 키(A~Z)                                초록(번쩍임과 같은 색)
-//   주 수식(macOS Cmd, Windows Ctrl)                                빨강
-//     macOS Cmd    : A C V X Z S F N T W R P Q H M , ` Space Tab ← →
-//     Windows Ctrl : A C V X Z Y S F N T W R P O H Tab ← →
-//   보조 수식(macOS Ctrl, Windows Win)                              흰색
-//     macOS Ctrl   : tmux·셸·줄 편집 B D S C Z L R A E U K W P N ← → ↑ Tab
-//     Windows Win  : D E L R I S V Tab ← → ↑ ↓
-//   Alt(macOS Option)                                               청록
-//     macOS Option : ← → 단어 이동, Backspace 단어 지우기
-//     Windows Alt  : Tab 창 전환, F4 닫기, ← → 뒤로·앞으로
-//   Shift         : Shift 로 결과가 바뀌는 키(글자·숫자·기호)      노랑(주황빛) — 거의 모든 키가 켜지므로 덜 밝게
-// 우선순위 레이어 > 한/영 누르는 동안 > 주 수식 > 보조 수식 > Alt > Shift. 키보드는 OS 를 모르므로 기본 레이어(맥 0 / 윈 1)로 목록을 고른다.
-// 판정은 매 프레임 현재 키맵(Vial 편집 반영)을 읽어서 하므로 키를 옮겨도 다시 구울 필요가 없다.
-//
-// 한/영 번쩍임: 언어 전환 키(CapsLock·RAlt·Lang1/2·일본어 키, is_lang_switch)를 누르거나 펌웨어 한/영 키(HANGUL)를 톡 치고 떼면 원래 조명 → 초록으로 smoothstep 교차 전환(FLASH_RISE_MS)해 FLASH_HOLD_MS 유지한 뒤,
-// 연한 하늘색 띠가 왼쪽에서 오른쪽으로 FLASH_SWEEP_MS 동안 흘러 초록을 오른쪽으로 밀어내고 띠 뒤로 원래 조명이
-// 돌아온다(순간 점멸·즉시 복귀는 눈이 피로함).
-// 강조색·번쩍임 색은 현재 RGB 밝기(V)에 비례해 줄인다(효과와 같은 기준) — 고정값으로 칠하면 밝기 키가 강조 중에는 듣지 않는다.
-// 배터리·연결 표시는 경고라 밝기와 무관하게 그대로 둔다.
-// 강조 위에 덮고, 배터리·연결 표시(wireless_glue.c)는 그보다 위에 그린다. 키보드는 IME 상태를 모르므로
-// "눌렀다"만 알린다. 컴퓨터로 보내는 CapsLock 은 그대로.
+// 상태 강조 및 언어 전환 애니메이션
+// 활성 레이어 및 수식키에 따라 사용 가능한 키 LED 점등
 #include QMK_KEYBOARD_H
 #include "ws2812.h"
 #include "thumb.h"
 
-// 드라이버(platforms/chibios/drivers/ws2812_*.c)의 프레임 버퍼. 헤더에 선언이 없어 직접 선언한다.
+// WS2812 LED 프레임 버퍼
 extern ws2812_led_t ws2812_leds[];
 
 #define FLASH_RISE_MS 300
 #define FLASH_HOLD_MS 150
 #define FLASH_SWEEP_MS 1100
-// 밀어내는 띠: 앞 가장자리(초록→하늘색), 진한 하늘색 구간, 꼬리(하늘색→원래 조명) 폭, LED x 좌표 단위(0~224).
-// 띠 전체를 꼬리로 녹이면 진하게 보이는 부분이 앞쪽 1/3 뿐이라 진한 구간을 따로 둔다.
+// 스윕 애니메이션 밴드 폭
 #define SWEEP_EDGE 16
 #define SWEEP_SOLID 70
 #define SWEEP_TAIL 30
@@ -42,9 +19,8 @@ extern ws2812_led_t ws2812_leds[];
 #define SWEEP_R 110
 #define SWEEP_G 200
 #define SWEEP_B 255
-// 채널 하나만 쓰는 초록이 같은 전류에서 체감 밝기가 가장 높다. 전체 47개를 켜므로 전류 제한 후 값과 비슷하게 둔다.
 #define FLASH_G 220
-// 윈도우·리눅스 모드(기본 레이어 LAYER_WIN)는 번쩍임을 하늘색으로 해 맥 모드(초록)와 바로 구분한다.
+// Windows 모드 언어 전환 색상
 #define FLASH_WIN_G 150
 #define FLASH_WIN_B 220
 
@@ -55,10 +31,9 @@ static uint32_t flash_at;
 
 enum { HL_NONE, HL_LAYER, HL_HANGUL, HL_MAIN, HL_SUB, HL_ALT, HL_SHIFT };
 
-// 현재 모드 전환 키 깜박임 반주기(켜짐·꺼짐 각각), 초당 2회
 #define MODE_BLINK_HALF_MS 250
 
-// 탭홀드·수식 조합 키코드는 탭 쪽 기본 키코드로 판정한다.
+// 수식 조합 키에서 기본 키코드 추출
 static uint16_t basic_kc(uint16_t kc) {
     if (IS_QK_MOD_TAP(kc)) return QK_MOD_TAP_GET_TAP_KEYCODE(kc);
     if (IS_QK_LAYER_TAP(kc)) return QK_LAYER_TAP_GET_TAP_KEYCODE(kc);
@@ -66,7 +41,6 @@ static uint16_t basic_kc(uint16_t kc) {
     return kc;
 }
 
-// Windows Ctrl: 복사·붙여넣기·실행 취소·다시 실행·저장·찾기·새로 만들기·탭·창 닫기·새로 고침·인쇄·열기·바꾸기, 단어 이동
 static bool is_win_ctrl_key(uint16_t kc) {
     switch (kc) {
         case KC_A: case KC_C: case KC_V: case KC_X: case KC_Z: case KC_Y: case KC_S: case KC_F: case KC_N:
@@ -77,7 +51,6 @@ static bool is_win_ctrl_key(uint16_t kc) {
     }
 }
 
-// Windows Win: 바탕 화면·탐색기·잠금·실행·설정·검색·클립보드 기록, 작업 보기, 창 배치(←→↑↓)
 static bool is_alt_key(uint16_t kc, bool win) {
     switch (kc) {
         case KC_LEFT: case KC_RGHT:
@@ -101,7 +74,6 @@ static bool is_win_gui_key(uint16_t kc) {
     }
 }
 
-// Cmd(Gui): macOS 공통 단축키
 static bool is_cmd_key(uint16_t kc) {
     switch (kc) {
         case KC_A: case KC_C: case KC_V: case KC_X: case KC_Z: case KC_S: case KC_F: case KC_N:
@@ -113,8 +85,6 @@ static bool is_cmd_key(uint16_t kc) {
     }
 }
 
-// Ctrl(macOS 기준): tmux(B 접두키, D 분리·EOF, S 세션), 셸(C 중지, Z 일시정지, L 지우기, R 기록 검색),
-// 줄 편집(A/E 처음·끝, U/K/W 지우기, P/N 이전·다음 명령), 시스템(←→ 데스크톱, ↑ Mission Control, Tab 탭 전환)
 static bool is_ctrl_key(uint16_t kc) {
     switch (kc) {
         case KC_B: case KC_D: case KC_S: case KC_C: case KC_Z: case KC_L: case KC_R: case KC_A:
@@ -130,9 +100,7 @@ static bool is_shiftable(uint16_t kc) {
     return (kc >= KC_A && kc <= KC_0) || (kc >= KC_MINS && kc <= KC_SLSH) || kc == KC_NUBS;
 }
 
-// 언어 전환으로 쓰이는 단일 키: macOS CapsLock(짧게), Windows 한국어 입력기 RAlt, 한/영·한자(LNG1/LNG2),
-// 일본어 かな(INT2)·変換(INT4)·無変換(INT5). RAlt 는 맥 기본 레이어에서는 Option 이라 번쩍이지 않는다(Option 청록 강조는 그대로).
-// LAlt 는 조합키로 자주 써서, Win+Space·Ctrl+Space 같은 조합은 다른 용도와 겹쳐서 제외.
+// 단일 언어 전환 키코드 판정 (맥 Option/Alt 제외)
 static bool is_lang_switch(uint16_t kc) {
     switch (kc) {
         case KC_CAPS: case KC_RALT: case KC_LNG1: case KC_LNG2: case KC_INT2: case KC_INT4: case KC_INT5:
@@ -152,13 +120,12 @@ void highlight_record(uint16_t keycode, keyrecord_t *record) {
     if (is_lang_switch(keycode) && record->event.pressed) highlight_flash();
 }
 
-// smoothstep: 0~256 → 0~256, 양 끝에서 변화가 0 이라 전환이 부드럽다
+// smoothstep: 0~256 -> 0~256
 static uint32_t smooth(uint32_t t) {
     if (t > 256) t = 256;
     return t * t * (768 - 2 * t) / 65536;
 }
 
-// 고정 색 한 채널을 현재 밝기 비율로 줄인다
 static uint8_t dim(uint8_t c, uint8_t v) {
     return (uint16_t)c * v / 255;
 }
@@ -167,10 +134,9 @@ static uint8_t mix8(uint8_t a, uint8_t b, uint32_t k) {
     return (a * (256 - k) + b * k) / 256;
 }
 
-// 번쩍임 진행 중이면 지금 프레임(효과 + 강조)에 시간표대로 초록·하늘색 띠를 섞는다
 static void overlay_flash(uint8_t led_min, uint8_t led_max) {
     if (!flash_on) return;
-    // 기본 레이어(0·1) 외 레이어 진입 시 한/영 파도를 즉시 중단해 레이어 강조색을 우선 표시한다.
+    // 기본 레이어 외 진입 시 한/영 애니메이션 중단
     if (get_highest_layer(layer_state) >= LAYER_NUM) {
         flash_on = false;
         return;
@@ -187,7 +153,7 @@ static void overlay_flash(uint8_t led_min, uint8_t led_max) {
     uint32_t k    = 256;
     bool     sweep = ms >= FLASH_RISE_MS + FLASH_HOLD_MS;
     if (sweep) {
-        // 띠 앞 가장자리: 왼쪽 밖(-EDGE)에서 띠 꼬리가 오른쪽 밖으로 나갈 때까지, 양 끝은 천천히
+        // 밴드 앞 가장자리 이동
         uint32_t t    = (ms - FLASH_RISE_MS - FLASH_HOLD_MS) * 256 / FLASH_SWEEP_MS;
         int32_t  span = 224 + SWEEP_BAND + SWEEP_EDGE;
         front         = -SWEEP_EDGE + (int32_t)smooth(t) * span / 256;
@@ -200,7 +166,6 @@ static void overlay_flash(uint8_t led_min, uint8_t led_max) {
         if (!sweep) {
             r = mix8(r0, 0, k), g = mix8(g0, fg, k), b = mix8(b0, fb, k);
         } else {
-            // u: 앞 가장자리에서 뒤로 떨어진 거리(음수 = 아직 밀리지 않은 초록 쪽)
             int32_t u = front - g_led_config.point[i].x;
             if (u < -SWEEP_EDGE) {
                 r = 0, g = fg, b = fb;
@@ -243,25 +208,25 @@ static void highlight(uint8_t led_min, uint8_t led_max) {
 
     uint8_t r, g, b;
     switch (state) {
-        case HL_LAYER: // 보라 계열 한 가지로 묶고 단계만 바꾼다(한/영 번쩍임의 초록·하늘색과 겹치지 않게)
+        case HL_LAYER:
             if (layer == LAYER_NUM) {
-                r = 70, g = 0, b = 255; // 남보라
+                r = 70, g = 0, b = 255;
             } else if (layer == LAYER_SYM || layer == LAYER_SYM_WIN) {
-                r = 162, g = 0, b = 255; // 보라
+                r = 162, g = 0, b = 255;
             } else {
-                r = 255, g = 0, b = 116; // 분홍
+                r = 255, g = 0, b = 116;
             }
             break;
-        case HL_HANGUL: // 한/영 누르는 동안
+        case HL_HANGUL:
             r = 0, g = win ? FLASH_WIN_G : FLASH_G, b = win ? FLASH_WIN_B : 0;
             break;
-        case HL_MAIN: // macOS Cmd / Windows Ctrl
+        case HL_MAIN:
             r = 255, g = 0, b = 0;
             break;
-        case HL_SUB: // macOS Ctrl / Windows Win, 흰색(밝게 보여 조금 낮춤)
+        case HL_SUB:
             r = 200, g = 200, b = 200;
             break;
-        case HL_ALT: // Alt / Option: 청록
+        case HL_ALT:
             r = 0, g = 200, b = 160;
             break;
         default:
@@ -283,10 +248,10 @@ static void highlight(uint8_t led_min, uint8_t led_max) {
             if (state == HL_LAYER) {
                 uint16_t kc = keymap_key_to_keycode(layer, pos);
                 on          = kc != KC_TRNS && kc != KC_NO;
-                // 지금 모드의 맥/윈 전환 키는 깜박여 현재 모드를 알린다
+                // 현재 기본 모드 전환 키 점멸
                 if (on && IS_QK_PERSISTENT_DEF_LAYER(kc) && QK_PERSISTENT_DEF_LAYER_GET_LAYER(kc) == get_highest_layer(default_layer_state) && (timer_read() / MODE_BLINK_HALF_MS) % 2) on = false;
             } else {
-                // 투명 키는 아래 레이어로 내려가 실제로 입력될 키를 본다.
+                // 하위 레이어 투명 키 처리
                 uint16_t kc = basic_kc(keymap_key_to_keycode(layer_switch_get_layer(pos), pos));
                 if (state == HL_HANGUL) {
                     on = kc >= KC_A && kc <= KC_Z;

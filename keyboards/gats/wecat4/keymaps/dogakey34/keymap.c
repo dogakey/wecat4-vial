@@ -1,24 +1,14 @@
 // Copyright 2026 dogakey
 // SPDX-License-Identifier: GPL-2.0-or-later
-//
-// 위캣4 34키 키맵(dogakey34).
-//   0 맥 기본 / 1 윈도우 기본(키는 같고 한/영 전환 방식만 다름). 오른손 엄지 바깥(RAlt 자리) = Backspace
-//   2 숫자(L1 엄지 누름, 34키 숫자 레이어와 같은 자리, Caps 자리·한/영 엄지 자리 Esc) / 3 기호 원샷(L1 엄지 톡, 34키 기호 레이어와 같은 자리)
-//   4 편집(오른쪽 Space 누름: 왼손 Esc·Tab(A)·Shift+Tab(Z)·방향키, 오른손 검지 Y/H/N = Home/End/Backspace, U/J/M = PgUp/PgDn/Delete)
-//   5 F키·미디어·조명·무선(숫자 2 + 편집 4 동시 누름). 34키 영역: F1~F10 숫자 자리·F11 G·F12 H, 미디어 J~L·M~., 조명 X~V·/ 자리 모드, 맥/윈 B·N, 무선 BT1~3·2.4G 는 A~F, 배터리는 Caps 자리
-// 4×12 에 맞춘 차이: 둘째 줄에 1,10 이 없어 ] 는 Enter 자리, \ 는 F 자리. 셋째 줄은 "/" 가 Z 왼쪽이라 글자 기준으로 맞췄다
-// (B·N·M 자리 = 위캣4 B·N·M).
-// 키코드명은 최신 QMK 번호 체계로 해독한 것이라 RGB 계열(UG_*/RGB_M_*)은 원 펌웨어와 의미가 다를 수 있다.
-// RGB_M_* 는 rgblight 모드 키라 RGB Matrix에서는 동작하지 않을 수 있음 — Vial에서 교체 권장.
-// QK_KB_0/1/2/5/7/8/11 = BT1/BT2/BT3/2.4G/BAT/CHRG/RAINBOW(wireless_glue.c), HANGUL·THUMB = thumb.c.
+// 위캣4 34키 키맵 (0:macOS, 1:Windows, 2:숫자, 3:기호, 4:편집, 5:기능)
+// QK_KB_0~11: wireless_glue.c, HANGUL/THUMB/SPC_NAV: thumb.c
+// RGB_M_* 는 RGB Matrix에서 동작하지 않을 수 있음(Vial 교체 권장)
 
 #include QMK_KEYBOARD_H
 #include "thumb.h"
 
-// 홈로우 수식(A Ctrl·S Alt·D Gui·F Shift / J Shift·K Gui·L Alt·Enter): 같은 손 키와 겹치면 글자(chordal hold), 직전 글자 뒤 바로 누르면 글자(flow tap)
-// 윈도우 레이어의 L 은 LAlt — RAlt 단독 입력이 윈도우 한국어 입력기에서 한/영 전환으로 먹지 않게.
-// Enter 는 톡으로만 쓰므로 누르고 있으면 오른쪽 Shift.
-// 오른쪽 Space 는 톡으로 누르면 Space, 누르고 있으면 편집 레이어.
+// 홈로우 수식키 (A Ctrl, S Alt, D Gui, F Shift / J Shift, K Gui, L Alt, Enter Ctrl)
+// 윈도우 L은 RAlt 한/영 간섭 방지를 위해 LAlt 지정
 #define A_CTL  MT(MOD_LCTL, KC_A)
 #define S_ALT  MT(MOD_LALT, KC_S)
 #define D_GUI  MT(MOD_LGUI, KC_D)
@@ -30,7 +20,6 @@
 #define ENT_CTL MT(MOD_RCTL, KC_ENT)
 #define Z_SFT  MT(MOD_LSFT, KC_Z)
 #define SLSH_SFT MT(MOD_RSFT, KC_SLSH)
-// SPC_NAV(QK_KB_14) 는 thumb.h 에 정의됨 (200ms normal mode)
 
 // clang-format off
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
@@ -56,7 +45,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
         S(KC_GRV), S(KC_1), S(KC_2), S(KC_3), S(KC_4), S(KC_5), S(KC_6), S(KC_7), S(KC_8), S(KC_9), S(KC_0), S(KC_MINS),
         _______, S(KC_SLSH), S(KC_SCLN), S(KC_QUOT), KC_QUOT, S(KC_GRV), S(KC_MINS), S(KC_EQL), S(KC_LBRC), S(KC_RBRC), S(KC_BSLS),
         _______, S(KC_SLSH), _______, _______, _______, _______, _______, S(KC_SCLN), S(KC_QUOT), S(KC_COMM), S(KC_DOT), _______,
-        _______, _______, _______, _______, _______, _______, KC_LSFT /* 원샷 취소(thumb.c) */, _______, _______
+        _______, _______, _______, _______, _______, _______, KC_LSFT /* 원샷 취소 */, _______, _______
     ),
     [LAYER_NAV] = LAYOUT(
         _______, KC_ESC, KC_NO, KC_UP, KC_NO, KC_NO, KC_HOME, KC_PGUP, KC_NO, KC_NO, KC_NO, _______,
